@@ -1,0 +1,21 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: web-ingress
+  namespace: web
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: "web-test"
+spec:
+  rules:
+  - host: nginx.acedemand.com
+    http:
+      paths:
+      - backend:
+          serviceName: nginx
+          servicePort: 80
+  - host: hello.acedemand.com
+    http:
+      paths:
+      - backend:
+          serviceName: hello
+          servicePort: 80

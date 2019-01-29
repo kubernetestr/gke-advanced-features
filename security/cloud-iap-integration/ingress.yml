@@ -1,0 +1,19 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: web-ingress
+  annotations:
+    kubernetes.io/ingress.allow-http: "false"
+  namespace: web
+spec:
+  tls:
+  - hosts:
+    - nginx.aozturk.xyz
+    secretName: foo-secret
+  rules:
+  - host: nginx.aozturk.xyz
+    http:
+      paths:
+      - backend:
+          serviceName: nginx
+          servicePort: 80
