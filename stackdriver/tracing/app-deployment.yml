@@ -1,0 +1,21 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trace
+  namespace: web
+spec:
+  selector:
+    matchLabels:
+      app: trace
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: trace
+    spec:
+      containers:
+      - name: trace
+        image: aozturk12/trace:2.1
+        ports:
+        - containerPort: 8080
