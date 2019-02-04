@@ -1,0 +1,49 @@
+def label = "mypod-${UUID.randomUUID().toString()}"
+podTemplate(label: label, containers: [
+        containerTemplate(name: 'docker', image: 'docker', command: 'cat', ttyEnabled: true),
+        containerTemplate(name: 'git', image: 'alpine/git', ttyEnabled: true, command: 'cat'),
+        containerTemplate(name: 'gcloud', image: 'greenwall/gcloud-kubectl-helm', command: 'cat', ttyEnabled: true),
+        containerTemplate(name: 'gcpdocker', image: 'paulwoelfel/docker-gcloud', ttyEnabled: true, command: 'cat'),
+
+    ],
+    volumes: [
+        hostPathVolume(mountPath: '/var/run/docker.sock', hostPath: '/var/run/docker.sock'),
+        secretVolume(secretName: 'k8s-admin-sa', mountPath: '/root/')
+        ]
+    ){
+    node(label) {
+        def GIT_ID = ""
+        stage('Deploy Ace Pipeline') {
+            //git credentialsId: 'acegitcredentials', branch:'master', url:'https://github.com/dstar55/docker-hello-world-spring-boot.git'
+            git credentialsId: 'gitcredentials', branch:'master', url:'https://github.com/dstar55/docker-hello-world-spring-boot.git'
+            container('git'){
+                stage('Extract Git ID'){
+                    sh "git rev-parse --short HEAD > .git/commit-id"
+                    IMAGETAG = readFile('.git/commit-id').trim()
+                }
+            }
+        container('docker') {
+           sh """
+                docker build -f Dockerfile -t gcr.io/<PROJECT_ID>/spring-helloworld:latest .
+                docker tag gcr.io/<PROJECT_ID>/spring-helloworld:latest gcr.io/<PROJECT_ID>/spring-helloworld:${IMAGETAG} .
+            """
+        }
+        container('gcpdocker'){
+            sh """
+                gcloud docker -- push  gcr.io/<PROJECT_ID>/spring-helloworld:latest
+                gcloud docker -- push  gcr.io/<PROJECT_ID>/spring-helloworld:${IMAGETAG}
+             """
+        }
+        container('gcloud'){
+            sh  "sed -i -e 's/#VERSION#/${IMAGETAG}/g' ./k8s/deployment.yaml"
+            sh  "sed -i -e 's/#VERSION#/${IMAGETAG}/g' ./k8s/service.yaml"
+        }
+        container('gcloud'){
+            sh 'gcloud auth activate-service-account kubernetesserviceaccount@<PROJECT_ID>.iam.gserviceaccount.com --key-file=/root/dev-<PROJECT_ID>-k8s-admin.json --project=dev-sunmar'
+            sh 'gcloud container clusters get-credentials <PROJECT_ID> --zone europe-west3-c --project <PROJECT_ID>'
+            sh 'kubectl get deployment'
+            sh 'kubectl apply -f .k8s/'
+        }
+      }
+    }
+}
