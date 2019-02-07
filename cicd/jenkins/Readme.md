@@ -52,7 +52,7 @@ helm install --name jenkins stable/jenkins --namespace jenkins -f values.yaml
 kubectl port-forward -n jenkins \n
      $(kubectl get pods --namespace jenkins -l "component=jenkins-jenkins-master" -o jsonpath="{.items[0].metadata.name}") 8080:8080
 ```
-* Login to Jenkins from http://localhost
+* Login to Jenkins from http://localhost:8080
 * Create Pipeline
 * Copy Jenkinsfile content to pipeline script panel
 
