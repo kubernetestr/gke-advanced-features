@@ -52,7 +52,10 @@ helm install --name jenkins stable/jenkins --namespace jenkins -f values.yaml
 kubectl port-forward -n jenkins \n
      $(kubectl get pods --namespace jenkins -l "component=jenkins-jenkins-master" -o jsonpath="{.items[0].metadata.name}") 8080:8080
 ```
-![Jenkins Login Screen](img/jenkins-login.png "Jenkins Login Screen")
+* Login to Jenkins from http://localhost
+* Create Pipeline
+* Copy Jenkinsfile content to pipeline script panel
+
 
 #### Cretae Service Account for managing kubernetes clusters
 ```bash
@@ -65,6 +68,6 @@ gcloud iam service-accounts keys create ~/key.json \
   --iam-account jenkins-sa@$PROJECT_ID.iam.gserviceaccount.com
 
 kubectl create secret generic k8s-developer-sa --from-file=$HOME/key.json  -n jenkins
+```
 
-
-``` 
+* Build the jenkins pipeline
