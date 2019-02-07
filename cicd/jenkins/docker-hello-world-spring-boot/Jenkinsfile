@@ -1,57 +1,62 @@
-node {
-    // reference to maven
-    // ** NOTE: This 'maven-3.5.2' Maven tool must be configured in the Jenkins Global Configuration.   
-    def mvnHome = tool 'maven-3.5.2'
+def label = "mypod-${UUID.randomUUID().toString()}"
+podTemplate(label: label, containers: [
+        containerTemplate(name: 'docker', image: 'docker', command: 'cat', ttyEnabled: true),
+        containerTemplate(name: 'git', image: 'alpine/git', ttyEnabled: true, command: 'cat'),
+        containerTemplate(name: 'gcloud', image: 'greenwall/gcloud-kubectl-helm', command: 'cat', ttyEnabled: true),
+        containerTemplate(name: 'gcpdocker', image: 'paulwoelfel/docker-gcloud', ttyEnabled: true, command: 'cat'),
+        containerTemplate(name: 'maven', image: 'maven:3.6.0-jdk-8-slim', command: 'cat', ttyEnabled: true),
 
-    // holds reference to docker image
-    def dockerImage
-    // ip address of the docker private repository(nexus)
-    
-    def dockerRepoUrl = "localhost:8083"
-    def dockerImageName = "hello-world-java"
-    def dockerImageTag = "${dockerRepoUrl}/${dockerImageName}:${env.BUILD_NUMBER}"
-    
-    stage('Clone Repo') { // for display purposes
-      // Get some code from a GitHub repository
-      git 'https://github.com/dstar55/docker-hello-world-spring-boot.git'
-      // Get the Maven tool.
-      // ** NOTE: This 'maven-3.5.2' Maven tool must be configured
-      // **       in the global configuration.           
-      mvnHome = tool 'maven-3.5.2'
-    }    
-  
-    stage('Build Project') {
-      // build project via maven
-      sh "'${mvnHome}/bin/mvn' -Dmaven.test.failure.ignore clean package"
-    }
-	
-	stage('Publish Tests Results'){
-      parallel(
-        publishJunitTestsResultsToJenkins: {
-          echo "Publish junit Tests Results"
-		  junit '**/target/surefire-reports/TEST-*.xml'
-		  archive 'target/*.jar'
-        },
-        publishJunitTestsResultsToSonar: {
-          echo "This is branch b"
-      })
-    }
-		
-    stage('Build Docker Image') {
-      // build docker image
-      sh "mv ./target/hello*.jar ./data" 
-      
-      dockerImage = docker.build("hello-world-java")
-    }
-   
-    stage('Deploy Docker Image'){
-      
-      // deploy docker image to nexus
+    ],
+    volumes: [
+        hostPathVolume(mountPath: '/var/run/docker.sock', hostPath: '/var/run/docker.sock'),
+        secretVolume(secretName: 'k8s-developer-sa', mountPath: '/root/')
+        ],
+    envVars: [
+            envVar(key: 'MAVEN_CONFIG', value: '/var/maven/.m2 '),
+        ],
+    ){
+    node(label) {
+        def GIT_ID = ""
+        def PROJECT_ID="inspired-bus-194216"
+        stage('Deploy Ace Pipeline') {
+            //git credentialsId: 'acegitcredentials', branch:'master', url:'https://github.com/dstar55/docker-hello-world-spring-boot.git'
+            git branch:'master', url:'https://github.com/acedemand/gke-advanced-features.git'
+            container('git'){
+                stage('Extract Git ID'){
+                    sh "git rev-parse --short HEAD > .git/commit-id"
+                    IMAGETAG = readFile('.git/commit-id').trim()
+                }
+            }
 
-      echo "Docker Image Tag Name: ${dockerImageTag}"
-
-      sh "docker login -u admin -p admin123 ${dockerRepoUrl}"
-      sh "docker tag ${dockerImageName} ${dockerImageTag}"
-      sh "docker push ${dockerImageTag}"
+        container('maven') {
+           sh """
+                mvn clean package -f ./cicd/jenkins/docker-hello-world-spring-boot/pom.xml -Dmaven.test.skip=true -Duser.home=/var/maven
+                cp ./cicd/jenkins/docker-hello-world-spring-boot/target/hello*.jar ./cicd/jenkins/docker-hello-world-spring-boot/ 
+            """
+        }
+        container('docker') {
+           sh """
+                docker build -f cicd/jenkins/docker-hello-world-spring-boot/Dockerfile -t gcr.io/${PROJECT_ID}/spring-helloworld:latest .
+                docker tag gcr.io/${PROJECT_ID}/spring-helloworld:latest gcr.io/${PROJECT_ID}/spring-helloworld:${IMAGETAG}
+            """
+        }
+        container('gcpdocker'){
+            sh """
+                gcloud docker -- push  gcr.io/${PROJECT_ID}/spring-helloworld:latest
+                gcloud docker -- push  gcr.io/${PROJECT_ID}/spring-helloworld:${IMAGETAG}
+             """
+        }
+        container('gcloud'){
+            sh  "sed -i -e 's/#VERSION#/${IMAGETAG}/g' ./cicd/jenkins/docker-hello-world-spring-boot/k8s/deployment.yaml"
+            sh  "sed -i -e 's/#PROJECTID#/${PROJECT_ID}/g' ./cicd/jenkins/docker-hello-world-spring-boot/k8s/deployment.yaml"
+            //sh  "sed -i -e 's/#VERSION#/${IMAGETAG}/g' ./k8s/service.yaml"
+        }
+        container('gcloud'){
+            sh "gcloud auth activate-service-account jenkins-sa@${PROJECT_ID}.iam.gserviceaccount.com --key-file=/root/key.json --project=${PROJECT_ID}"
+            sh "gcloud container clusters get-credentials staging-cluster --zone  us-central1-c --project ${PROJECT_ID}"
+            sh 'kubectl get deployment'
+            sh "kubectl apply -f ./cicd/jenkins/docker-hello-world-spring-boot/k8s/"
+        }
+      }
     }
 }
