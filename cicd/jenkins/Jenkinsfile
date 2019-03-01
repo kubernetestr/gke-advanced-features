@@ -18,7 +18,7 @@ podTemplate(label: label, containers: [
     node(label) {
         def GIT_ID = ""
         def PROJECT_ID="inspired-bus-194216"
-        stage('Deploy Ace Pipeline') {
+        stage('Ace CI') {
             //git credentialsId: 'acegitcredentials', branch:'master', url:'https://github.com/dstar55/docker-hello-world-spring-boot.git'
             git branch:'master', url:'https://github.com/acedemand/gke-advanced-features.git'
             container('git'){
@@ -31,7 +31,7 @@ podTemplate(label: label, containers: [
         container('maven') {
            sh """
                 mvn clean package -f cicd/jenkins/docker-hello-world-spring-boot/pom.xml -Dmaven.test.skip=true -Duser.home=/var/maven
-                cp .cicd/jenkins/docker-hello-world-spring-boot/target/hello*.jar .cicd/jenkins/docker-hello-world-spring-boot/data 
+                cp ./cicd/jenkins/docker-hello-world-spring-boot/target/hello*.jar ./cicd/jenkins/docker-hello-world-spring-boot/data 
             """
         }
         container('docker') {
@@ -40,21 +40,27 @@ podTemplate(label: label, containers: [
                 docker tag gcr.io/${PROJECT_ID}/spring-helloworld:latest gcr.io/${PROJECT_ID}/spring-helloworld:${IMAGETAG}
             """
         }
-        container('gcpdocker'){
+
+        stage('Ace CD') {
+            container('gcpdocker'){
+                sh """
+                    gcloud auth activate-service-account jenkins-sa@${PROJECT_ID}.iam.gserviceaccount.com --key-file=/root/key.json --project=${PROJECT_ID}
+                    gcloud docker -- push  gcr.io/${PROJECT_ID}/spring-helloworld:latest
+                    gcloud docker -- push  gcr.io/${PROJECT_ID}/spring-helloworld:${IMAGETAG}
+                 """
+            }
+            container('gcloud'){
+                sh  "sed -i -e 's/#VERSION#/${IMAGETAG}/g' ./cicd/jenkins/docker-hello-world-spring-boot/k8s/deployment.yaml"
+                //sh  "sed -i -e 's/#VERSION#/${IMAGETAG}/g' ./k8s/service.yaml"
+            }
+            container('gcloud'){
             sh """
-                gcloud docker -- push  gcr.io/${PROJECT_ID}/spring-helloworld:latest
-                gcloud docker -- push  gcr.io/${PROJECT_ID}/spring-helloworld:${IMAGETAG}
-             """
-        }
-        container('gcloud'){
-            sh  "sed -i -e 's/#VERSION#/${IMAGETAG}/g' .cicd/jenkins/docker-hello-world-spring-boot/k8s/deployment.yaml"
-            //sh  "sed -i -e 's/#VERSION#/${IMAGETAG}/g' ./k8s/service.yaml"
-        }
-        container('gcloud'){
-            sh 'gcloud auth activate-service-account kubernetesserviceaccount@${PROJECT_ID}.iam.gserviceaccount.com --key-file=/root/key.json --project=${PROJECT_ID}'
-            sh 'gcloud container clusters get-credentials ${PROJECT_ID} --zone europe-west3-c --project ${PROJECT_ID}'
-            sh 'kubectl get deployment'
-            sh 'kubectl apply -f .k8s/'
+                gcloud auth activate-service-account jenkins-sa@${PROJECT_ID}.iam.gserviceaccount.com --key-file=/root/key.json --project=${PROJECT_ID}
+                gcloud container clusters get-credentials demo --zone us-central1-a --project ${PROJECT_ID}
+                kubectl get deployment
+                kubectl apply -n frontend -f ./cicd/jenkins/docker-hello-world-spring-boot/k8s
+               """
+            }
         }
       }
     }
