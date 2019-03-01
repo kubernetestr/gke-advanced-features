@@ -49,8 +49,10 @@ helm install --name jenkins stable/jenkins --namespace jenkins -f values.yaml
 #print password
  printf $(kubectl get secret --namespace jenkins jenkins -o jsonpath="{.data.jenkins-admin-password}" | base64 --decode);echo
 #connect jenkins
-kubectl port-forward -n jenkins \n
-     $(kubectl get pods --namespace jenkins -l "component=jenkins-jenkins-master" -o jsonpath="{.items[0].metadata.name}") 8080:8080
+kubectl port-forward -n jenkins \
+     $(kubectl get pods --namespace jenkins -l \
+     "component=jenkins-jenkins-master" -o jsonpath="{.items[0].metadata.name}") \
+     8080:8080
 ```
 * Login to Jenkins from http://localhost:8080
 * Create Pipeline
