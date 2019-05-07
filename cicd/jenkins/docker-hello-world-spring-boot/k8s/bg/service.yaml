@@ -7,6 +7,7 @@ metadata:
     tier: frontend
     version: "#VERSION#"
   name: frontend
+  namespace: frontend
 spec:
   ports:
   - port: 8080
