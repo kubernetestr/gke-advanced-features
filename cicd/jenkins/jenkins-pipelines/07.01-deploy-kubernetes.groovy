@@ -29,20 +29,22 @@ podTemplate(label: label, containers: [
                 }
             }
 
-        container('maven') {
-           sh """
-                mvn clean package -f cicd/jenkins/docker-hello-world-spring-boot/pom.xml -Dmaven.test.skip=true -Duser.home=/var/maven
-                cp ./cicd/jenkins/docker-hello-world-spring-boot/target/hello*.jar ./cicd/jenkins/docker-hello-world-spring-boot/data 
-            """
+            container('maven') {
+            sh """
+                    mvn clean package -f cicd/jenkins/docker-hello-world-spring-boot/pom.xml -Dmaven.test.skip=true -Duser.home=/var/maven
+                    cp ./cicd/jenkins/docker-hello-world-spring-boot/target/hello*.jar ./cicd/jenkins/docker-hello-world-spring-boot/data 
+                """
+            }
         }
-        container('docker') {
-           sh """
-                docker build -f cicd/jenkins/docker-hello-world-spring-boot/Dockerfile -t gcr.io/${PROJECT_ID}/spring-helloworld:latest .
-                docker tag gcr.io/${PROJECT_ID}/spring-helloworld:latest gcr.io/${PROJECT_ID}/spring-helloworld:${IMAGETAG}
-            """
+        stage('Docker Build'){
+            container('docker') {
+            sh """
+                    docker build -f cicd/jenkins/docker-hello-world-spring-boot/Dockerfile -t gcr.io/${PROJECT_ID}/spring-helloworld:latest .
+                    docker tag gcr.io/${PROJECT_ID}/spring-helloworld:latest gcr.io/${PROJECT_ID}/spring-helloworld:${IMAGETAG}
+                """
+            }
         }
-
-        stage('Ace CD') {
+        stage('Docker Push') {
             container('gcpdocker'){
                 sh """
                     gcloud auth activate-service-account jenkins-sa@${PROJECT_ID}.iam.gserviceaccount.com --key-file=/root/key.json --project=${PROJECT_ID}
@@ -50,30 +52,33 @@ podTemplate(label: label, containers: [
                     gcloud docker -- push  gcr.io/${PROJECT_ID}/spring-helloworld:${IMAGETAG}
                  """
             }
+        }
+        stage('Version Replace') {
             container('gcloud'){
                 sh  "sed -i -e 's/#VERSION#/${IMAGETAG}/g' ./cicd/jenkins/docker-hello-world-spring-boot/k8s/bg/deployment.yaml"
                 sh  "sed -i -e 's/#PROJECTID#/${PROJECT_ID}/g' ./cicd/jenkins/docker-hello-world-spring-boot/k8s/bg/deployment.yaml"
                 sh  "sed -i -e 's/#VERSION#/${IMAGETAG}/g' ./cicd/jenkins/docker-hello-world-spring-boot/k8s/bg/service.yaml"
                 //sh  "sed -i -e 's/#VERSION#/${IMAGETAG}/g' ./k8s/service.yaml"
             }
-            container('gcloud'){
-            sh """
-                apk update
-                apk add jq
-                gcloud auth activate-service-account jenkins-sa@${PROJECT_ID}.iam.gserviceaccount.com --key-file=/root/key.json --project=${PROJECT_ID}
-                gcloud container clusters get-credentials test-cluster --zone us-central1-a --project ${PROJECT_ID}
-                kubectl get deployment -n frontend
-                kubectl apply -f ./cicd/jenkins/docker-hello-world-spring-boot/k8s/bg/deployment.yaml
-                READY=\$(kubectl get deploy -n frontend $DEPLOYMENTNAME -o json | jq '.status.conditions[] | select(.reason == "MinimumReplicasAvailable") | .status' | tr -d '"')
-                while [[ "\$READY" != "True" ]]; do
+        }
+        stage('K8s Deployment'){
+                container('gcloud'){
+                sh """
+                    apk update
+                    apk add jq
+                    gcloud auth activate-service-account jenkins-sa@${PROJECT_ID}.iam.gserviceaccount.com --key-file=/root/key.json --project=${PROJECT_ID}
+                    gcloud container clusters get-credentials test-cluster --zone us-central1-a --project ${PROJECT_ID}
+                    kubectl get deployment -n frontend
+                    kubectl apply -f ./cicd/jenkins/docker-hello-world-spring-boot/k8s/bg/deployment.yaml
                     READY=\$(kubectl get deploy -n frontend $DEPLOYMENTNAME -o json | jq '.status.conditions[] | select(.reason == "MinimumReplicasAvailable") | .status' | tr -d '"')
-                    sleep 5
-                done
-                kubectl apply -f ./cicd/jenkins/docker-hello-world-spring-boot/k8s/bg/service.yaml
-                kubectl delete -n frontend deployment \$(kubectl get deployments -n frontend  --sort-by=.metadata.creationTimestamp   -o jsonpath="{.items[0].metadata.name}")
-               """
-            }
+                    while [[ "\$READY" != "True" ]]; do
+                        READY=\$(kubectl get deploy -n frontend $DEPLOYMENTNAME -o json | jq '.status.conditions[] | select(.reason == "MinimumReplicasAvailable") | .status' | tr -d '"')
+                        sleep 5
+                    done
+                    kubectl apply -f ./cicd/jenkins/docker-hello-world-spring-boot/k8s/bg/service.yaml
+                    kubectl delete -n frontend deployment \$(kubectl get deployments -n frontend  --sort-by=.metadata.creationTimestamp   -o jsonpath="{.items[0].metadata.name}")
+                """
+                }
         }
       }
     }
-}
