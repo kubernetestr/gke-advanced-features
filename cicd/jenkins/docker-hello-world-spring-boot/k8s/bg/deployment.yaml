@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-#VERSION#
+  namespace: frontend
+  labels:
+    app: guestbook
+    tier: frontend
+    version: "#VERSION#"
+spec:
+  # modify replicas according to your case
+  replicas: 1
+  selector:
+    matchLabels:
+      tier: frontend
+      app: guestbook
+      version: "#VERSION#"
+  template:
+    metadata:
+      labels:
+        app: guestbook
+        tier: frontend
+        version: "#VERSION#"
+    spec:
+      containers:
+      - name: guestbook
+        image: gcr.io/#PROJECTID#/spring-helloworld:#VERSION#
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+          # If your cluster config does not include a dns service, then to
+          # instead access environment variables to find service host
+          # info, comment out the 'value: dns' line above, and uncomment the
+          # line below.
+          # value: env
+        ports:
+        - containerPort: 8080
