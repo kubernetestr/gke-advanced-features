@@ -6,7 +6,7 @@ metadata:
   labels:
     app: guestbook
     tier: frontend
-    version: #VERSION#
+    version: "#VERSION#"
 spec:
   # modify replicas according to your case
   replicas: 1
@@ -14,13 +14,13 @@ spec:
     matchLabels:
       tier: frontend
       app: guestbook
-      version: #VERSION#
+      version: "#VERSION#"
   template:
     metadata:
       labels:
         app: guestbook
         tier: frontend
-        version: #VERSION#
+        version: "#VERSION#"
     spec:
       containers:
       - name: guestbook
