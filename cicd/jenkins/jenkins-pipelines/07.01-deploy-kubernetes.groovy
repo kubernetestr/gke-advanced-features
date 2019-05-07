@@ -25,6 +25,7 @@ podTemplate(label: label, containers: [
                 stage('Extract Git ID'){
                     sh "git rev-parse --short HEAD > .git/commit-id"
                     IMAGETAG = readFile('.git/commit-id').trim()
+                    DEPLOYMENTNAME="frontend-${IMAGETAG}"
                 }
             }
 
