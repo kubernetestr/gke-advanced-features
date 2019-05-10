@@ -1,0 +1,11 @@
+apiVersion: autoscaling.k8s.io/v1beta2
+kind: VerticalPodAutoscaler
+metadata:
+  name: nginx-vpa
+spec:
+  targetRef:
+    apiVersion: "extensions/v1beta1"
+    kind: Deployment
+    name: nginx
+  updatePolicy:
+    updateMode: "Off"
