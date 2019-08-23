@@ -32,7 +32,7 @@ curl -d@simple-deploy.json -X POST \
 
 ```
 kubectl -n default run injector --image=alpine -- \
-    /bin/sh -c "apk add --no-cache --yes curl; \
+    /bin/sh -c "apk add --no-cache curl; \
     while true; do curl -sS --max-time 3 \
     http://sampleapp:8080/; done"
 ```
