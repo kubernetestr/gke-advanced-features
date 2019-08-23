@@ -15,7 +15,7 @@ This is a step by step guide about how to create canary pipelines and automating
 - Change Kubernetes account in pipeline json file according to your deployment:
 
 ```
-sed -i 's/my-kubernetes-account/spinnaker-account/g' simple-deploy.json
+sed -i 's/spinnaker-account/MY-account/g' simple-deploy.json
 ```
 
 - Create pipeline via Gate API:
@@ -43,7 +43,7 @@ kubectl -n default run injector --image=alpine -- \
 - Change Kubernetes account in pipeline json file according to your deployment:
 
 ```
-sed -i 's/my-kubernetes-account/spinnaker-account/g' canary-deploy.json
+sed -i 's/spinnaker-account/MY-account/g' canary-deploy.json
 ```
 
 
